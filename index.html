@@ -32,7 +32,7 @@
   const umbrellas = [];
   const flowers = [];
   const floatingPoints = [];
-  const rainbows = [];
+  const clocks = [];
 
   function spawnPoo() {
     const rand = Math.random();
@@ -75,9 +75,9 @@
     });
   }
 
-  function spawnRainbow() {
+  function spawnClock() {
     const size = 50;
-    rainbows.push({
+    clocks.push({
       x: Math.random()*(W-size),
       y: -size,
       w: size, h: size,
@@ -94,7 +94,7 @@
     umbrellas.length = 0;
     flowers.length = 0;
     floatingPoints.length = 0;
-    rainbows.length = 0;
+    clocks.length = 0;
     state.playing = true;
     state.score = 0;
     state.speed = 2;
@@ -107,7 +107,7 @@
     state.slowTime = 0;
   }
 
-  let last = 0, acc = 0, spawnAcc = 0, umbrellaAcc = 0, rainbowAcc = 0;
+  let last = 0, acc = 0, spawnAcc = 0, umbrellaAcc = 0, clockAcc = 0;
   function loop(t){
     const dt = Math.min(32, t - last); // ms
     last = t;
@@ -135,9 +135,9 @@
       // スポーン
       if (spawnAcc >= state.spawn){ spawnAcc = 0; spawnPoo(); }
       umbrellaAcc += dt;
-      if (umbrellaAcc >= 8000){ umbrellaAcc = 0; spawnUmbrella(); } // spawn umbrella every 8 seconds
-      rainbowAcc += dt;
-      if (rainbowAcc >= 15000){ rainbowAcc = 0; spawnRainbow(); } // spawn rainbow every 15 seconds
+      if (umbrellaAcc >= 7000){ umbrellaAcc = 0; spawnUmbrella(); } // spawn umbrella every 7 seconds
+      clockAcc += dt;
+      if (clockAcc >= 15000){ clockAcc = 0; spawnClock(); } // spawn clock every 15 seconds
 
       // 更新
       for (let i=poos.length-1; i>=0; i--){
@@ -152,10 +152,10 @@
         u.y += u.vy;
         if (u.y > H+80) umbrellas.splice(i,1);
       }
-      for (let i=rainbows.length-1; i>=0; i--){
-        const r = rainbows[i];
+      for (let i=clocks.length-1; i>=0; i--){
+        const r = clocks[i];
         r.y += r.vy;
-        if (r.y > H+80) rainbows.splice(i,1);
+        if (r.y > H+80) clocks.splice(i,1);
       }
       for (let i=flowers.length-1; i>=0; i--){
         const f = flowers[i];
@@ -197,12 +197,12 @@
       }
       
       // 虹の当たり判定
-      for (let i=rainbows.length-1; i>=0; i--){
-        const r = rainbows[i];
+      for (let i=clocks.length-1; i>=0; i--){
+        const r = clocks[i];
         if (rectHit(player, r)){
           state.slowMotion = true;
           state.slowTime = 5000; // 5 seconds slow motion
-          rainbows.splice(i,1);
+          clocks.splice(i,1);
           break;
         }
       }
@@ -294,8 +294,8 @@
     
     // 虹
     ctx.font = "32px serif";
-    for (const r of rainbows){
-      ctx.fillText("🌈", r.x, r.y + r.h - 6);
+    for (const r of clocks){
+      ctx.fillText("⏰", r.x, r.y + r.h - 6);
     }
     
     // 花
