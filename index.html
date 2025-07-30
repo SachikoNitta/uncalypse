@@ -1,0 +1,232 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8" />
+<title>Uncalypse</title>
+<style>
+  html,body{height:100%;margin:0;background-image:url('background.png');background-size:cover;background-position:center;color:#fff;font-family:system-ui}
+  canvas{display:block;width:100vw;height:100vh;background:transparent;touch-action:none}
+  .hint{position:fixed;inset:auto 0 8px; text-align:center; font-size:14px;opacity:.7}
+</style>
+<canvas id="game"></canvas>
+<div class="hint">← → / A D で移動、Spaceでリスタート 🧻</div>
+<script>
+(() => {
+  const cvs = document.getElementById('game');
+  const ctx = cvs.getContext('2d');
+
+  // Set canvas to full browser size
+  cvs.width = window.innerWidth;
+  cvs.height = window.innerHeight;
+  const W = cvs.width, H = cvs.height;
+
+  // Handle window resize
+  window.addEventListener('resize', () => {
+    cvs.width = window.innerWidth;
+    cvs.height = window.innerHeight;
+  });
+  const state = { playing: true, t: 0, score: 0, best: 0, speed: 2, spawn: 700 };
+
+  const player = { w: 48, h: 16, x: W/2-24, y: H/2, vx: 0, speed: 5, protected: false, protectTime: 0 };
+  const keys = new Set();
+  const poos = [];
+  const umbrellas = [];
+
+  function spawnPoo() {
+    const rand = Math.random();
+    let size, poopType;
+    if (rand < 0.05) { // 5% chance for giga poop
+      size = 100;
+      poopType = 'giga';
+    } else if (rand < 0.10) { // 5% chance for mega poop
+      size = 80;
+      poopType = 'mega';
+    } else if (rand < 0.25) { // 15% chance for big poop
+      size = 60;
+      poopType = 'big';
+    } else { // 75% chance for normal poop
+      size = 36;
+      poopType = 'normal';
+    }
+    
+    // Spawn near player with some randomness
+    const playerCenter = player.x + player.w/2;
+    const spawnRange = 120; // pixels around player
+    let spawnX = playerCenter + (Math.random() - 0.5) * spawnRange;
+    spawnX = Math.max(0, Math.min(W - size, spawnX)); // keep in bounds
+    poos.push({
+      x: spawnX,
+      y: -size,
+      w: size, h: size,
+      vy: state.speed + Math.random()*2,
+      type: poopType
+    });
+  }
+
+  function spawnUmbrella() {
+    const size = 40;
+    umbrellas.push({
+      x: Math.random()*(W-size),
+      y: -size,
+      w: size, h: size,
+      vy: state.speed * 0.8
+    });
+  }
+
+  function rectHit(a,b){
+    return a.x < b.x+b.w && a.x+a.w > b.x && a.y < b.y+b.h && a.y+a.h > b.y;
+  }
+
+  function reset() {
+    poos.length = 0;
+    umbrellas.length = 0;
+    state.playing = true;
+    state.score = 0;
+    state.speed = 2;
+    state.spawn = 700; // ms
+    player.x = W/2 - player.w/2;
+    player.y = H*0.75; // slightly above center
+    player.protected = false;
+    player.protectTime = 0;
+  }
+
+  let last = 0, acc = 0, spawnAcc = 0, umbrellaAcc = 0;
+  function loop(t){
+    const dt = Math.min(32, t - last); // ms
+    last = t;
+    if (state.playing){
+      acc += dt; spawnAcc += dt; state.t += dt;
+      // 難易度スケール
+      if (state.t % 1000 < dt) state.speed += 0.05;
+      if (state.t % 3000 < dt) state.spawn = Math.max(220, state.spawn - 20);
+
+      // 入力
+      player.vx = 0;
+      if (keys.has('ArrowLeft')||keys.has('KeyA')) player.vx = -player.speed;
+      if (keys.has('ArrowRight')||keys.has('KeyD')) player.vx = player.speed;
+      player.x = Math.max(0, Math.min(W - player.w, player.x + player.vx));
+
+      // スポーン
+      if (spawnAcc >= state.spawn){ spawnAcc = 0; spawnPoo(); }
+      umbrellaAcc += dt;
+      if (umbrellaAcc >= 8000){ umbrellaAcc = 0; spawnUmbrella(); } // spawn umbrella every 8 seconds
+
+      // 更新
+      for (let i=poos.length-1; i>=0; i--){
+        const p = poos[i];
+        p.y += p.vy;
+        if (p.y > H+80) poos.splice(i,1);
+      }
+      for (let i=umbrellas.length-1; i>=0; i--){
+        const u = umbrellas[i];
+        u.y += u.vy;
+        if (u.y > H+80) umbrellas.splice(i,1);
+      }
+      
+      // 保護時間の減少
+      if (player.protected) {
+        player.protectTime -= dt;
+        if (player.protectTime <= 0) {
+          player.protected = false;
+        }
+      }
+
+      // 傘の当たり判定
+      for (let i=umbrellas.length-1; i>=0; i--){
+        const u = umbrellas[i];
+        if (rectHit(player, u)){
+          player.protected = true;
+          player.protectTime = 5000; // 5 seconds protection
+          umbrellas.splice(i,1);
+          break;
+        }
+      }
+      
+      // うんこと傘の当たり判定（保護が消える）
+      if (player.protected) {
+        for (let i=poos.length-1; i>=0; i--){
+          const p = poos[i];
+          // Check if poop hits the protected player's umbrella area
+          if (rectHit(player, p)){
+            player.protected = false;
+            player.protectTime = 0;
+            poos.splice(i,1); // Remove the poop that hit the umbrella
+            break;
+          }
+        }
+      }
+      
+      // うんこの当たり判定
+      if (!player.protected) {
+        for (const p of poos){
+          if (rectHit(player, p)){ state.playing = false; state.best = Math.max(state.best, state.score|0); break; }
+        }
+      }
+
+      // スコア
+      state.score += dt/16.7; // ≒ frame数
+    }
+
+    // 描画
+    ctx.clearRect(0,0,W,H);
+
+    // プレイヤー（トイレットペーパー）
+    ctx.font = "40px serif";
+    ctx.fillText("🧻", player.x, player.y + player.h + 8);
+    // 保護状態の表示
+    if (player.protected) {
+      ctx.font = "30px serif";
+      ctx.fillText("☂️", player.x - 10, player.y - 5);
+    }
+
+    // 傘
+    ctx.font = "32px serif";
+    for (const u of umbrellas){
+      ctx.fillText("☂️", u.x, u.y + u.h - 6);
+    }
+    
+    // うんこ
+    for (const p of poos){
+      if (p.type === 'giga') {
+        ctx.font = "80px serif";
+      } else if (p.type === 'mega') {
+        ctx.font = "64px serif";
+      } else if (p.type === 'big') {
+        ctx.font = "48px serif";
+      } else {
+        ctx.font = "32px serif";
+      }
+      ctx.fillText("💩", p.x, p.y + p.h - 6);
+    }
+
+    // UI
+    ctx.fillStyle="#fff"; ctx.font="20px system-ui";
+    ctx.fillText(`Score: ${Math.floor(state.score)}   Best: ${state.best}`, 12, 28);
+
+    if (!state.playing){
+      ctx.fillStyle="rgba(0,0,0,.6)"; ctx.fillRect(0,0,W,H);
+      ctx.fillStyle="#fff"; ctx.font="bold 36px system-ui";
+      ctx.fillText("💀 GAME OVER 💀", 70, H/2-10);
+      ctx.font="20px system-ui";
+      ctx.fillText("Press Space or R to restart", 110, H/2+26);
+    }
+    requestAnimationFrame(loop);
+  }
+
+  // 入力
+  addEventListener('keydown', e=>{
+    keys.add(e.code);
+    if (!state.playing && (e.code==='Space' || e.code==='KeyR')) { reset(); }
+  });
+  addEventListener('keyup', e=>keys.delete(e.code));
+
+  // モバイル左右タッチ簡易対応
+  cvs.addEventListener('pointerdown', e=>{
+    const left = e.offsetX < W/2;
+    keys.add(left?'ArrowLeft':'ArrowRight');
+  });
+  addEventListener('pointerup', ()=>{ keys.delete('ArrowLeft'); keys.delete('ArrowRight'); });
+
+  reset(); requestAnimationFrame(loop);
+})();
+</script>
+</html>
