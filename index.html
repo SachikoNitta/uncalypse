@@ -24,7 +24,7 @@
     cvs.width = window.innerWidth;
     cvs.height = window.innerHeight;
   });
-  const state = { playing: true, paused: false, t: 0, score: 0, best: 0, speed: 2, spawn: 700 };
+  const state = { playing: true, paused: false, t: 0, score: 0, best: 0, speed: 2, spawn: 700, slowMotion: false, slowTime: 0 };
 
   const player = { w: 48, h: 16, x: W/2-24, y: H/2, vx: 0, vy: 0, speed: 5, protected: false, protectTime: 0 };
   const keys = new Set();
@@ -32,6 +32,7 @@
   const umbrellas = [];
   const flowers = [];
   const floatingPoints = [];
+  const rainbows = [];
 
   function spawnPoo() {
     const rand = Math.random();
@@ -74,6 +75,16 @@
     });
   }
 
+  function spawnRainbow() {
+    const size = 50;
+    rainbows.push({
+      x: Math.random()*(W-size),
+      y: -size,
+      w: size, h: size,
+      vy: state.speed * 0.6
+    });
+  }
+
   function rectHit(a,b){
     return a.x < b.x+b.w && a.x+a.w > b.x && a.y < b.y+b.h && a.y+a.h > b.y;
   }
@@ -83,6 +94,7 @@
     umbrellas.length = 0;
     flowers.length = 0;
     floatingPoints.length = 0;
+    rainbows.length = 0;
     state.playing = true;
     state.score = 0;
     state.speed = 2;
@@ -91,9 +103,11 @@
     player.y = H*0.75; // slightly above center
     player.protected = false;
     player.protectTime = 0;
+    state.slowMotion = false;
+    state.slowTime = 0;
   }
 
-  let last = 0, acc = 0, spawnAcc = 0, umbrellaAcc = 0;
+  let last = 0, acc = 0, spawnAcc = 0, umbrellaAcc = 0, rainbowAcc = 0;
   function loop(t){
     const dt = Math.min(32, t - last); // ms
     last = t;
@@ -122,17 +136,26 @@
       if (spawnAcc >= state.spawn){ spawnAcc = 0; spawnPoo(); }
       umbrellaAcc += dt;
       if (umbrellaAcc >= 8000){ umbrellaAcc = 0; spawnUmbrella(); } // spawn umbrella every 8 seconds
+      rainbowAcc += dt;
+      if (rainbowAcc >= 15000){ rainbowAcc = 0; spawnRainbow(); } // spawn rainbow every 15 seconds
 
       // 更新
       for (let i=poos.length-1; i>=0; i--){
         const p = poos[i];
-        p.y += p.vy;
+        // Slow motion effect on poop falling speed
+        const speedMultiplier = state.slowMotion ? 0.3 : 1.0;
+        p.y += p.vy * speedMultiplier;
         if (p.y > H+80) poos.splice(i,1);
       }
       for (let i=umbrellas.length-1; i>=0; i--){
         const u = umbrellas[i];
         u.y += u.vy;
         if (u.y > H+80) umbrellas.splice(i,1);
+      }
+      for (let i=rainbows.length-1; i>=0; i--){
+        const r = rainbows[i];
+        r.y += r.vy;
+        if (r.y > H+80) rainbows.splice(i,1);
       }
       for (let i=flowers.length-1; i>=0; i--){
         const f = flowers[i];
@@ -154,6 +177,13 @@
         }
       }
       
+      // スローモーション時間の減少
+      if (state.slowMotion) {
+        state.slowTime -= dt;
+        if (state.slowTime <= 0) {
+          state.slowMotion = false;
+        }
+      }
 
       // 傘の当たり判定
       for (let i=umbrellas.length-1; i>=0; i--){
@@ -166,8 +196,17 @@
         }
       }
       
-      
-      
+      // 虹の当たり判定
+      for (let i=rainbows.length-1; i>=0; i--){
+        const r = rainbows[i];
+        if (rectHit(player, r)){
+          state.slowMotion = true;
+          state.slowTime = 5000; // 5 seconds slow motion
+          rainbows.splice(i,1);
+          break;
+        }
+      }
+  
       // 傘でうんこを花に変える
       if (player.protected) {
         // Create umbrella magic area around player
@@ -246,12 +285,17 @@
       ctx.font = "30px serif";
       ctx.fillText("☂️", player.x - 10, player.y - 5);
     }
-    
 
     // 傘
     ctx.font = "32px serif";
     for (const u of umbrellas){
       ctx.fillText("☂️", u.x, u.y + u.h - 6);
+    }
+    
+    // 虹
+    ctx.font = "32px serif";
+    for (const r of rainbows){
+      ctx.fillText("🌈", r.x, r.y + r.h - 6);
     }
     
     // 花
