@@ -158,7 +158,14 @@
       // うんこの当たり判定
       if (!player.protected) {
         for (const p of poos){
-          if (rectHit(player, p)){ state.playing = false; state.best = Math.max(state.best, state.score|0); break; }
+          // Create a smaller collision box that better matches the emoji
+          const poopCollision = {
+            x: p.x + p.w * 0.1,
+            y: p.y + p.h * 0.3,
+            w: p.w * 0.8,
+            h: p.h * 0.7
+          };
+          if (rectHit(player, poopCollision)){ state.playing = false; state.best = Math.max(state.best, state.score|0); break; }
         }
       }
 
