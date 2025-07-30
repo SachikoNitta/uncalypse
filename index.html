@@ -31,6 +31,7 @@
   const poos = [];
   const umbrellas = [];
   const flowers = [];
+  const floatingPoints = [];
 
   function spawnPoo() {
     const rand = Math.random();
@@ -81,6 +82,7 @@
     poos.length = 0;
     umbrellas.length = 0;
     flowers.length = 0;
+    floatingPoints.length = 0;
     state.playing = true;
     state.score = 0;
     state.speed = 2;
@@ -137,6 +139,12 @@
         f.y += f.vy;
         if (f.y > H+80) flowers.splice(i,1);
       }
+      for (let i=floatingPoints.length-1; i>=0; i--){
+        const fp = floatingPoints[i];
+        fp.y -= 1; // float upward
+        fp.life -= dt;
+        if (fp.life <= 0) floatingPoints.splice(i,1);
+      }
       
       // 保護時間の減少
       if (player.protected) {
@@ -173,6 +181,12 @@
         for (let i=poos.length-1; i>=0; i--){
           const p = poos[i];
           if (rectHit(umbrellaArea, p)){
+            // Calculate points based on poop type
+            let points = 30;
+            if (p.type === 'giga') points = 100;
+            else if (p.type === 'mega') points = 75;
+            else if (p.type === 'big') points = 50;
+            
             // Transform poop into flower
             flowers.push({
               x: p.x,
@@ -182,8 +196,17 @@
               vy: p.vy * 0.5, // slower fall
               type: p.type
             });
+            
+            // Create floating point display
+            floatingPoints.push({
+              x: p.x + p.w/2,
+              y: p.y,
+              points: points,
+              life: 2000 // 2 seconds
+            });
+            
             poos.splice(i,1); // Remove the poop
-            state.score += 30; // Bonus points for transformation
+            state.score += points; // Add points to score
             break;
           }
         }
@@ -210,9 +233,6 @@
           if (rectHit(playerCollision, poopBottom)){ state.playing = false; state.best = Math.max(state.best, state.score|0); break; }
         }
       }
-
-      // スコア
-      state.score += dt/16.7; // ≒ frame数
     }
 
     // 描画
@@ -260,6 +280,15 @@
         ctx.font = "32px serif";
       }
       ctx.fillText("💩", p.x, p.y + p.h - 6);
+    }
+
+    // 浮遊ポイント
+    ctx.font="bold 24px system-ui";
+    for (const fp of floatingPoints){
+      // Fade out effect
+      const alpha = fp.life / 2000; // fade from 1 to 0
+      ctx.fillStyle=`rgba(255, 215, 0, ${alpha})`; // gold color with fade
+      ctx.fillText(`+${fp.points}`, fp.x, fp.y);
     }
 
     // UI
