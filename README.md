@@ -2,6 +2,8 @@
 
 A fun arcade-style dodge game where you control toilet paper trying to avoid falling poop!
 
+**🎮 [Play Demo](https://uncalypse.vercel.app/)**
+
 ## 🎮 How to Play
 
 - **Movement**: Use arrow keys (← →) or A/D keys to move left and right
