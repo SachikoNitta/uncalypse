@@ -24,7 +24,7 @@
     cvs.width = window.innerWidth;
     cvs.height = window.innerHeight;
   });
-  const state = { playing: true, t: 0, score: 0, best: 0, speed: 2, spawn: 700 };
+  const state = { playing: true, paused: false, t: 0, score: 0, best: 0, speed: 2, spawn: 700 };
 
   const player = { w: 48, h: 16, x: W/2-24, y: H/2, vx: 0, speed: 5, protected: false, protectTime: 0 };
   const keys = new Set();
@@ -93,7 +93,7 @@
   function loop(t){
     const dt = Math.min(32, t - last); // ms
     last = t;
-    if (state.playing){
+    if (state.playing && !state.paused){
       acc += dt; spawnAcc += dt; state.t += dt;
       // 難易度スケール
       if (state.t % 1000 < dt) state.speed += 0.05;
@@ -157,15 +157,23 @@
       
       // うんこの当たり判定
       if (!player.protected) {
+        // Create smaller collision box for player that better matches the emoji
+        const playerCollision = {
+          x: player.x + player.w * 0.2,
+          y: player.y + player.h * 0.2,
+          w: player.w * 0.6,
+          h: player.h * 0.6
+        };
+        
         for (const p of poos){
-          // Create a smaller collision box that better matches the emoji
-          const poopCollision = {
-            x: p.x + p.w * 0.1,
-            y: p.y + p.h * 0.3,
-            w: p.w * 0.8,
-            h: p.h * 0.7
+          // Only check collision with bottom part of poop
+          const poopBottom = {
+            x: p.x + p.w * 0.2,
+            y: p.y + p.h * 0.7, // only bottom 30% of poop
+            w: p.w * 0.6,
+            h: p.h * 0.3
           };
-          if (rectHit(player, poopCollision)){ state.playing = false; state.best = Math.max(state.best, state.score|0); break; }
+          if (rectHit(playerCollision, poopBottom)){ state.playing = false; state.best = Math.max(state.best, state.score|0); break; }
         }
       }
 
@@ -209,12 +217,22 @@
     ctx.fillStyle="#fff"; ctx.font="20px system-ui";
     ctx.fillText(`Score: ${Math.floor(state.score)}   Best: ${state.best}`, 12, 28);
 
+    if (state.paused && state.playing){
+      ctx.fillStyle="rgba(0,0,0,.5)"; ctx.fillRect(0,0,W,H);
+      ctx.fillStyle="#fff"; ctx.font="bold 48px system-ui";
+      ctx.fillText("⏸️ PAUSED", W/2-100, H/2);
+      ctx.font="20px system-ui";
+      ctx.fillText("Press Space to resume", W/2-80, H/2+40);
+    }
+    
     if (!state.playing){
       ctx.fillStyle="rgba(0,0,0,.6)"; ctx.fillRect(0,0,W,H);
       ctx.fillStyle="#fff"; ctx.font="bold 36px system-ui";
-      ctx.fillText("💀 GAME OVER 💀", 70, H/2-10);
+      ctx.textAlign="center";
+      ctx.fillText("💀 GAME OVER 💀", W/2, H/2-10);
       ctx.font="20px system-ui";
-      ctx.fillText("Press Space or R to restart", 110, H/2+26);
+      ctx.fillText("Press Space or R to restart", W/2, H/2+26);
+      ctx.textAlign="left"; // reset alignment
     }
     requestAnimationFrame(loop);
   }
@@ -222,7 +240,11 @@
   // 入力
   addEventListener('keydown', e=>{
     keys.add(e.code);
-    if (!state.playing && (e.code==='Space' || e.code==='KeyR')) { reset(); }
+    if (!state.playing && (e.code==='Space' || e.code==='KeyR')) { 
+      reset(); 
+    } else if (state.playing && e.code==='Space') {
+      state.paused = !state.paused;
+    }
   });
   addEventListener('keyup', e=>keys.delete(e.code));
 
