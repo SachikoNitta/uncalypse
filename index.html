@@ -26,10 +26,11 @@
   });
   const state = { playing: true, paused: false, t: 0, score: 0, best: 0, speed: 2, spawn: 700 };
 
-  const player = { w: 48, h: 16, x: W/2-24, y: H/2, vx: 0, speed: 5, protected: false, protectTime: 0 };
+  const player = { w: 48, h: 16, x: W/2-24, y: H/2, vx: 0, vy: 0, speed: 5, protected: false, protectTime: 0 };
   const keys = new Set();
   const poos = [];
   const umbrellas = [];
+  const flowers = [];
 
   function spawnPoo() {
     const rand = Math.random();
@@ -79,6 +80,7 @@
   function reset() {
     poos.length = 0;
     umbrellas.length = 0;
+    flowers.length = 0;
     state.playing = true;
     state.score = 0;
     state.speed = 2;
@@ -101,9 +103,18 @@
 
       // 入力
       player.vx = 0;
+      player.vy = 0;
       if (keys.has('ArrowLeft')||keys.has('KeyA')) player.vx = -player.speed;
       if (keys.has('ArrowRight')||keys.has('KeyD')) player.vx = player.speed;
+      
+      // 傘を持っている時は上下移動も可能
+      if (player.protected) {
+        if (keys.has('ArrowUp')||keys.has('KeyW')) player.vy = -player.speed;
+        if (keys.has('ArrowDown')||keys.has('KeyS')) player.vy = player.speed;
+      }
+      
       player.x = Math.max(0, Math.min(W - player.w, player.x + player.vx));
+      player.y = Math.max(0, Math.min(H - player.h, player.y + player.vy));
 
       // スポーン
       if (spawnAcc >= state.spawn){ spawnAcc = 0; spawnPoo(); }
@@ -121,6 +132,11 @@
         u.y += u.vy;
         if (u.y > H+80) umbrellas.splice(i,1);
       }
+      for (let i=flowers.length-1; i>=0; i--){
+        const f = flowers[i];
+        f.y += f.vy;
+        if (f.y > H+80) flowers.splice(i,1);
+      }
       
       // 保護時間の減少
       if (player.protected) {
@@ -129,6 +145,7 @@
           player.protected = false;
         }
       }
+      
 
       // 傘の当たり判定
       for (let i=umbrellas.length-1; i>=0; i--){
@@ -141,15 +158,32 @@
         }
       }
       
-      // うんこと傘の当たり判定（保護が消える）
+      
+      
+      // 傘でうんこを花に変える
       if (player.protected) {
+        // Create umbrella magic area around player
+        const umbrellaArea = {
+          x: player.x - player.w * 0.5,
+          y: player.y - player.h * 0.5,
+          w: player.w * 2,
+          h: player.h * 2
+        };
+        
         for (let i=poos.length-1; i>=0; i--){
           const p = poos[i];
-          // Check if poop hits the protected player's umbrella area
-          if (rectHit(player, p)){
-            player.protected = false;
-            player.protectTime = 0;
-            poos.splice(i,1); // Remove the poop that hit the umbrella
+          if (rectHit(umbrellaArea, p)){
+            // Transform poop into flower
+            flowers.push({
+              x: p.x,
+              y: p.y,
+              w: p.w,
+              h: p.h,
+              vy: p.vy * 0.5, // slower fall
+              type: p.type
+            });
+            poos.splice(i,1); // Remove the poop
+            state.score += 30; // Bonus points for transformation
             break;
           }
         }
@@ -192,11 +226,26 @@
       ctx.font = "30px serif";
       ctx.fillText("☂️", player.x - 10, player.y - 5);
     }
+    
 
     // 傘
     ctx.font = "32px serif";
     for (const u of umbrellas){
       ctx.fillText("☂️", u.x, u.y + u.h - 6);
+    }
+    
+    // 花
+    for (const f of flowers){
+      if (f.type === 'giga') {
+        ctx.font = "80px serif";
+      } else if (f.type === 'mega') {
+        ctx.font = "64px serif";
+      } else if (f.type === 'big') {
+        ctx.font = "48px serif";
+      } else {
+        ctx.font = "32px serif";
+      }
+      ctx.fillText("🌸", f.x, f.y + f.h - 6);
     }
     
     // うんこ
